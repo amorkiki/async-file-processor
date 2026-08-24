@@ -1,5 +1,17 @@
-# Python-generated files
+# 后端数据库（绝对不能提交！）
+*.db
+*.sqlite
+*.sqlite3
+
+# Python 缓存
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
 *.py[oc]
 build/
 dist/
@@ -7,7 +19,10 @@ output/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# 临时测试文件
+FS-1-*.py
+test_*.py
 
-
+# 环境变量
+.env
+.env.local
