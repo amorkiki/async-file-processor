@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.routers import tasks
 from app.models import ErrorOut
@@ -31,6 +32,15 @@ app = FastAPI(
     description="基于 FastAPI 的异步任务服务：提交 download/process 任务，后台 worker 并发执行，支持查询进度与取消。所有错误统一返回 {code, message} 格式。",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# ------------------- 配置 CORS -------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # 你的前端开发服务器地址
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有 HTTP 方法（GET, POST, DELETE, OPTIONS）
+    allow_headers=["*"],  # 允许所有请求头
 )
 
 

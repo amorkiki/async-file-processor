@@ -16,15 +16,17 @@ async def run_download(task: Task, db: Session) -> None:
     chunks = 5  # 分为5块下载
     # for 循环 5 次，每次"模拟耗时 + 更新进度"：
     for i in range(1, chunks + 1):
+        # ✅ 每次循环先从数据库刷新对象，确保是 attached 状态
+        db.refresh(task)
         if task.status == TaskStatus.cancelled:
             return
 
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(1)
         task.progress = round(i / chunks * 100)  # 20/40/60/80/100
         task.message = f"正在下载 {i}/{chunks} 块…"
 
         db.commit()
-
+        print(f"✅ 提交进度: {task.progress}%")
         if i == 3 and "bad" in url:  # 方便模拟测试的判断
             raise ConnectionError(f"第 {i}/{chunks} 块下载失败(404):{url}")
 
@@ -39,39 +41,38 @@ async def run_process(task: Task, db: Session) -> None:
     await asyncio.sleep(0.1)  # ✅ 增加微小延迟，确保取消请求能抢先
     # 读
     input_text = task.params.get("text", "if no text key")
+    # 第一步：20%
+    db.refresh(task)
     if task.status == TaskStatus.cancelled:
         return
     task.progress, task.message = 20, "读取输入…"
-    await asyncio.sleep(0.3)  # 模拟耗时
+    await asyncio.sleep(2)
+    db.commit()  # ✅ 立即提交
+    print(f"✅ 提交进度: 20%")
 
+    # 第二步：55%
     db.refresh(task)
-    # 算（模拟：哈希）
     if task.status == TaskStatus.cancelled:
         return
-    # 中间进度落库
-    db.commit()
     task.progress, task.message = 55, "处理中…"
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(2)
+    db.commit()  # ✅ 立即提交
+    print(f"✅ 提交进度: 55%")
 
+    # 算
+    result = hashlib.md5(input_text.encode()).hexdigest()
+
+    # 第三步：90%
     db.refresh(task)
     if task.status == TaskStatus.cancelled:
         return
-    # 中间进度落库
-    db.commit()
-
-    result = hashlib.md5(input_text.encode()).hexdigest()
+    task.progress, task.message = 90, "写入结果…"
+    await asyncio.sleep(2)
+    db.commit()  # ✅ 立即提交
+    print(f"✅ 提交进度: 90%")
 
     # 写
     content = f"输入: {input_text}\nMD5: {result}\n"  # 把结果拼成要落盘的内容
-    task.progress, task.message = 90, "写入结果…"
-
-    db.refresh(task)
-    if task.status == TaskStatus.cancelled:
-        return
-    # 中间进度落库
-    db.commit()
-
-    # 处理完成后要写入output/下面
     await _write_result(task, content)
     task.message = "处理完成"
 
