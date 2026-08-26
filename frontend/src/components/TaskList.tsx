@@ -11,11 +11,11 @@ interface TaskListProps {
 function TaskList({ tasks, onCancel }: TaskListProps) {
 
   return (
-    <Card>
+    <Card className="max-h-[500px]">
       <CardHeader className="text-center">
         <CardTitle>任务记录</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 max-h-400px overflow-y-auto">
+      <CardContent className="space-y-2 h-full overflow-y-auto">
         {tasks.length === 0 ? (<p className="text-center text-muted-foreground">暂无任务</p>) : (
           tasks.map(task => (
             <TaskItem key={task.id} task={task} onCancel={onCancel}></TaskItem>

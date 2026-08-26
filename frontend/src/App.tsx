@@ -41,7 +41,7 @@ export default function Dashboard() {
       await refreshTasks();
       toast.success('任务已提交，正在处理中...');
     } catch (error) {
-      alert(error.message || '提交失败，请重试');
+      toast.error(error.message || '提交失败，请重试')
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <Toaster position="top-center" richColors />
+      <Toaster position="top-center" />
       <div className="min-h-screen bg-background p-8 flex flex-col items-center">
         <h1 className="text-2xl font-bold text-primary mb-10 tracking-wider">异步文件处理平台</h1>
         {/* 三栏布局 */}
