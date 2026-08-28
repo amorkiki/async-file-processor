@@ -52,6 +52,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 上传文件
+         * @description 上传一个文件到服务器，返回服务器上的绝对路径。前端拿到路径后，再提交任务时使用该路径。
+         */
+        post: operations["upload_file_tasks_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -73,6 +93,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_upload_file_tasks_upload_post */
+        Body_upload_file_tasks_upload_post: {
+            /** File */
+            file: string;
+        };
         /** ErrorOut */
         ErrorOut: {
             /** Code */
@@ -110,6 +135,8 @@ export interface components {
         TaskOut: {
             /** Id */
             id: string;
+            /** Source Name */
+            source_name: string;
             /** @default download */
             type: components["schemas"]["TaskType"];
             /** @default pending */
@@ -322,6 +349,39 @@ export interface operations {
             };
         };
     };
+    upload_file_tasks_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_file_tasks_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     root__get: {
         parameters: {
             query?: never;
@@ -343,6 +403,7 @@ export interface operations {
         };
     };
 }
+
 
 // 类型导出(手动)
 export type TaskOut = components['schemas']['TaskOut'];
