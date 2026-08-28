@@ -1,4 +1,5 @@
 # models.py
+from typing import Optional
 from pydantic import BaseModel
 from sqlmodel import SQLModel, Field, JSON
 from sqlalchemy import Index, CheckConstraint, text
@@ -40,6 +41,7 @@ class Task(SQLModel, table=True):
         default_factory=lambda: str(uuid4()), primary_key=True, nullable=False
     )
     type: TaskType = Field(default=TaskType.download, nullable=False)
+    source_name: Optional[str] = Field(default=None, nullable=True)
     params: dict = Field(sa_type=JSON, default_factory=dict, nullable=False)
     status: TaskStatus = Field(default=TaskStatus.pending, nullable=False)
     progress: int = Field(default=0, nullable=False)
@@ -60,11 +62,12 @@ class TaskCreate(BaseModel):
 
 class TaskOut(BaseModel):
     id: str  # ← 从 Task 传进来，不是自己生成
+    source_name: str
     type: TaskType = TaskType.download
     status: TaskStatus = TaskStatus.pending
     progress: int
     message: str | None = None
-    created_at: datetime  # ← 从 Task 传进来，不是自己生成
+    created_at: datetime
 
 
 class TaskListResponse(BaseModel):

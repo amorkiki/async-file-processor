@@ -1,7 +1,9 @@
 # tasks.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlmodel import Session, select, func
-from uuid import UUID
+from uuid import UUID, uuid4
+from pathlib import Path
+import shutil
 from app.models import (
     Task,
     TaskCreate,
@@ -14,6 +16,10 @@ from app.core.db import get_session
 from app.core.queue import queue
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+# 定义上传目录
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 @router.post(
@@ -120,3 +126,28 @@ async def delete_task(task_id: UUID, db: Session = Depends(get_session)) -> dict
     task.message = "任务已取消"
     db.commit()
     return {"task_id": task.id, "status": task.status.value}
+
+
+@router.post(
+    "/upload",
+    status_code=200,
+    summary="上传文件",
+    description="上传一个文件到服务器，返回服务器上的绝对路径。前端拿到路径后，再提交任务时使用该路径。",
+)
+async def upload_file(file: UploadFile = File(...)):
+    # 1. 生成唯一文件名，避免冲突
+    ext = file.filename.split(".")[-1] if "." in file.filename else "file"
+    unique_name = f"{uuid4()}.{ext}"
+    save_path = UPLOAD_DIR / unique_name
+
+    # 2. 保存文件
+    try:
+        with open(save_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件保存失败: {str(e)}")
+    finally:
+        await file.close()  # 确保文件句柄释放
+
+    # 3. 返回绝对路径（前端将用它作为 file_path）
+    return {"file_path": str(save_path.absolute())}
