@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlmodel import Session, select, func
 from uuid import UUID, uuid4
-from pathlib import Path
 import shutil
 from app.models import (
     Task,
@@ -13,13 +12,14 @@ from app.models import (
     ErrorOut,
 )
 from app.core.db import get_session
-from app.core.queue import queue
+from app.core.engine import submit_task_to_queue
+from app.core.config import UPLOAD_DIR
+from fastapi_async_lib.engine.state_machine import (
+    create_task_state_machine,
+    TransitionError,
+)
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
-
-# 定义上传目录
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 @router.post(
@@ -31,14 +31,15 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 )
 async def submit_task(payload: TaskCreate, db: Session = Depends(get_session)):
     # 1. 创建 Task 对象
-    task = Task(type=payload.type, params=payload.params)
+    source_name = payload.params.get("source_name")
+    task = Task(type=payload.type, params=payload.params, source_name=source_name)
     # 2. 持久化到数据库
     db.add(task)
     db.commit()
     db.refresh(task)
-    # 3. 加入队列
-    await queue.put(task)
-    # 4. return id
+    # 3. 放入队列（引擎会异步处理）
+    submit_task_to_queue(task)
+    # 4. return task_id
     return {"task_id": task.id}
 
 
@@ -118,10 +119,17 @@ async def delete_task(task_id: UUID, db: Session = Depends(get_session)) -> dict
     task = db.get(Task, str(task_id))
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    if task.status in (TaskStatus.done, TaskStatus.cancelled, TaskStatus.failed):
+
+    sm = create_task_state_machine()
+    sm.reset(task.status.value)
+
+    try:
+        sm.transition_to(TaskStatus.cancelled.value)
+    except TransitionError as e:
         raise HTTPException(
             status_code=409, detail=f"任务当前状态 {task.status.value}，无法取消"
         )
+
     task.status = TaskStatus.cancelled
     task.message = "任务已取消"
     db.commit()

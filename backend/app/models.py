@@ -62,7 +62,7 @@ class TaskCreate(BaseModel):
 
 class TaskOut(BaseModel):
     id: str  # ← 从 Task 传进来，不是自己生成
-    source_name: str
+    source_name: str | None = None
     type: TaskType = TaskType.download
     status: TaskStatus = TaskStatus.pending
     progress: int

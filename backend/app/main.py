@@ -1,36 +1,42 @@
 # 入口mian.py：FastAPI() 实例 + 挂路由
-import asyncio
 from sqlmodel import SQLModel
-from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import IntegrityError
 from contextlib import asynccontextmanager
 from app.routers import tasks
-from app.models import ErrorOut
+from app.models import ErrorOut, TaskType
 from app.core.db import engine
-from app.core.queue import worker
+from app.core.engine import start_engine, stop_engine
+from app.plugins.registry import get_registry
 
 
 # 两个时机的钩子：启动时（yield 前）把 worker 放后台，关闭时（yield 后）取消 worker.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 建表（若没有）
+    # 1. 建表
     SQLModel.metadata.create_all(engine)
     print("✅ 数据库就绪")
-    # 启动 3 个 worker 后台任务
-    workers = [asyncio.create_task(worker()) for _ in range(3)]
+
+    # 2. 注册业务执行器
+    get_registry()
+    print("✅ 执行器注册完成")
+
+    # 3. 启动引擎（3 个 Worker）
+    await start_engine(worker_count=3)
+
     yield
-    # 关闭时全部取消
-    for w in workers:
-        w.cancel()
+
+    # 4. 关闭时停止引擎
+    await stop_engine()
 
 
 app = FastAPI(
     title="异步文件处理服务",
-    description="基于 FastAPI 的异步任务服务：提交 download/process 任务，后台 worker 并发执行，支持查询进度与取消。所有错误统一返回 {code, message} 格式。",
-    version="0.1.0",
+    description="...",
+    version="0.2.0",
     lifespan=lifespan,
 )
 

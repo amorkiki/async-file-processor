@@ -1,77 +1,14 @@
-# execute逻辑
-# main.py中 取任务 → `running` → `await execute(task)` → done/failed
-# 模块级 async 函数 + 分派表
-import asyncio
 import os
-import json
 import re
-import aiohttp
-import aiofiles
+import json
+import asyncio
 import pdfplumber
+import aiofiles
 from pathlib import Path
 from docx import Document
 from sqlmodel import Session
-from app.models import Task, TaskType, TaskStatus
-
-OUTPUT_DIR = Path("output")  # uvicorn 从 backend/ 启动 → backend/output/
-
-
-async def run_download(task: Task, db: Session) -> None:
-    # 1. 获取参数
-    url = task.params.get("url")
-    if not url:
-        raise ValueError("缺少下载链接 (url)")
-
-    # 本地保存路径
-    local_path = OUTPUT_DIR / f"{task.id}.dat"
-
-    # 2. 异步下载
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            if resp.status != 200:
-                raise ConnectionError(f"下载失败，HTTP{resp.status}")
-
-            total_size = int(resp.headers.get("content-length", 0))
-            downloaded = 0
-
-            async with aiofiles.open(local_path, "wb") as f:
-                async for chunk in resp.content.iter_chunked(1024 * 64):  # 64KB 每块
-                    # ① 写入磁盘
-                    await f.write(chunk)
-                    downloaded += len(chunk)
-
-                    # ② 检查取消（协作式）
-                    db.refresh(task)
-                    if task.status == TaskStatus.cancelled:
-                        # 删除已下载的半截文件
-                        if local_path.exists():
-                            os.remove(local_path)
-                        return
-
-                    # ③ 计算进度并更新数据库（每 100KB 更新一次，避免太频繁）
-                    if downloaded % (1024 * 100) < 1024 * 64:
-                        if total_size > 0:
-                            progress = int((downloaded / total_size) * 100)
-                        else:
-                            # 如果不知道总大小，按 10MB 估算，最多到 90%
-                            progress = min(
-                                90, int((downloaded / (10 * 1024 * 1024)) * 100)
-                            )
-                        task.progress = progress
-                        task.message = (
-                            f"下载中 {downloaded // 1024}KB / {total_size // 1024}KB"
-                        )
-                        db.commit()
-                        print(f"✅ 下载进度: {progress}%")
-    # ④ 下载完成
-    db.refresh(task)
-    if task.status == TaskStatus.cancelled:
-        return
-    task.progress = 100
-    task.message = "下载完成"
-    task.result_path = str(local_path)
-    db.commit()
-    print(f"✅ 文件已下载到: {local_path}")
+from app.models import Task, TaskStatus
+from app.core.config import OUTPUT_DIR
 
 
 # ---------- 辅助函数：根据文件后缀提取纯文本，并做基础清洗 ----------
@@ -228,41 +165,3 @@ async def run_process(task: Task, db: Session) -> None:
     task.result_path = str(result_path)
     db.commit()
     print(f"✅ 文件预处理完成: {result_path}")
-
-
-# ---------- 分派表 ----------
-RUNNERS = {
-    TaskType.download: run_download,
-    TaskType.process: run_process,
-}
-
-
-# 唯一入口：分流 + 兜底
-async def execute(task: Task, db: Session) -> None:
-    print(f"🚀 execute 被调用，任务 ID: {task.id}, 类型: {task.type}")
-    try:
-        runner = RUNNERS.get(task.type)
-        if not runner:
-            raise ValueError(f"未知任务类型: {task.type}")
-        await runner(task, db)  # 传的是托管对象
-
-        if task.status == TaskStatus.cancelled:  # 协作式：runner 中途退出的
-            return
-        if task.status != TaskStatus.done:
-            task.status = TaskStatus.done
-            task.progress = 100
-            db.commit()  # ✅ 不需要 db.add(task)，因为 task 已经是托管对象
-
-    except asyncio.CancelledError:
-        # ✅ 关键：捕获 CancelledError，转为 cancelled 状态，而不是让 worker 误判为 failed
-        task.status = TaskStatus.cancelled
-        task.message = "任务被外部取消"
-        # 取消状态也落库
-        db.commit()
-
-    except Exception as e:
-        # 真正的业务错误（如 ConnectionError、ValueError 等）
-        task.status = TaskStatus.failed
-        task.message = f"执行失败：{e}"
-        # 失败状态也落库
-        db.commit()
