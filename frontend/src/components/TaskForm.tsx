@@ -129,7 +129,7 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
             </div>
             {/* process */}
             <div className="space-y-2" hidden={isDownload}>
-              <Label>文件</Label>
+              <Label htmlFor="file-upload">文件</Label>
               <div className="flex items-center gap-2" hidden={isDownload}>
                 {fileName ? (
                   <div className="flex-1 flex min-w-0 items-center border rounded-md px-3 py-2 bg-muted/50 gap-2">
@@ -145,6 +145,7 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
                     <button
                       type="button"
                       onClick={handleClearFile}
+                      aria-label="clear-file"
                       className="text-xs text-muted-foreground hover:text-destructive flex-shrink-0"
                     >
                       <CircleX size={16} />
@@ -166,6 +167,7 @@ function TaskForm({ onSubmit, loading }: TaskFormProps) {
                 </Button>
                 {/* 隐藏的文件选择器 */}
                 <input
+                  id="file-upload"
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}

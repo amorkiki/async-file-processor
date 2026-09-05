@@ -1,5 +1,4 @@
 import axios from "axios";
-import { toast } from 'sonner';
 
 // 创建 axios 实例，统一配置
 const client = axios.create({

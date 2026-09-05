@@ -27,8 +27,7 @@ export default function Dashboard() {
     try {
       const result = await createTask(formData);
       // result要插入新任务到最前面（后端按 created_at 降序，新任务应在前）
-      // 但此时我们还没有该任务的完整信息（只有 id），可以先构造一个临时 TaskOut
-      // 稍后轮询会刷新列表，所以这里可以先用临时对象占位
+      // 构造 TaskOut 占位， 之后通过轮询刷新列表获取真实数据
       const tempTask: TaskOut = {
         id: result.task_id,
         type: formData.type,
@@ -39,7 +38,6 @@ export default function Dashboard() {
         created_at: new Date().toISOString(),
       }
       setTasks(prev => [tempTask, ...prev]);
-      // 立即触发一次刷新，获取真实数据（可选）
       await refreshTasks();
       toast.success('任务已提交，正在处理中...');
     } catch (error) {
