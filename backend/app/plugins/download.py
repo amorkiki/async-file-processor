@@ -1,4 +1,5 @@
 import os
+import asyncio
 import aiohttp
 import aiofiles
 from sqlmodel import Session
@@ -21,7 +22,11 @@ async def run_download(task: Task, db: Session) -> None:
             if resp.status != 200:
                 raise ConnectionError(f"下载失败，HTTP{resp.status}")
 
-            total_size = int(resp.headers.get("content-length", 0))
+            try:
+                total_size = int(resp.headers.get("content-length", 0))
+            except (ValueError, TypeError):
+                total_size = 0
+
             downloaded = 0
 
             async with aiofiles.open(local_path, "wb") as f:
@@ -35,22 +40,19 @@ async def run_download(task: Task, db: Session) -> None:
                     if task.status == TaskStatus.cancelled:
                         # 删除已下载的半截文件
                         if local_path.exists():
-                            os.remove(local_path)
+                            await asyncio.to_thread(os.remove, local_path)
                         return
 
                     # ③ 计算进度并更新数据库（每 100KB 更新一次，避免太频繁）
                     if downloaded % (1024 * 100) < 1024 * 64:
                         if total_size > 0:
                             progress = int((downloaded / total_size) * 100)
+                            msg = f"下载中 {downloaded // 1024}KB / {total_size // 1024}KB"
                         else:
-                            # 如果不知道总大小，按 10MB 估算，最多到 90%
-                            progress = min(
-                                90, int((downloaded / (10 * 1024 * 1024)) * 100)
-                            )
+                            progress = 0
+                            msg = f"下载中 {downloaded // (1024*1024)}MB（未知总大小）"
                         task.progress = progress
-                        task.message = (
-                            f"下载中 {downloaded // 1024}KB / {total_size // 1024}KB"
-                        )
+                        task.message = msg
                         db.commit()
                         print(f"✅ 下载进度: {progress}%")
     # ④ 下载完成

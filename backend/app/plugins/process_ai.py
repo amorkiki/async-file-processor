@@ -10,14 +10,15 @@ from sqlmodel import Session
 from app.models import Task, TaskStatus
 from app.core.config import OUTPUT_DIR
 
+MAX_CHARS_LIMIT = 5_000_000
 
-# ---------- 辅助函数：根据文件后缀提取纯文本，并做基础清洗 ----------
+
+# ---------- 辅助函数 1 ：根据文件后缀提取纯文本，并做基础清洗 ----------
 def extract_clean_text(file_path: Path) -> str:
     ext = file_path.suffix.lower()  # 文件后缀
     raw_text = ""
 
     if ext == ".pdf":
-        # 优先尝试 pdfplumber（更稳健）
         try:
             with pdfplumber.open(file_path) as pdf:
                 for page in pdf.pages:
@@ -26,6 +27,7 @@ def extract_clean_text(file_path: Path) -> str:
                         raw_text += text
         except Exception as e:
             # 如果 pdfplumber 失败，回退到 pypdf
+            print(f"⚠️ pdfplumber 解析失败，回退到 pypdf: {e}")
             from pypdf import PdfReader
 
             reader = PdfReader(file_path)
@@ -33,7 +35,7 @@ def extract_clean_text(file_path: Path) -> str:
                 text = page.extract_text()
                 if text:
                     raw_text += text
-    elif ext == ".doxc":
+    elif ext == ".docx":
         doc = Document(file_path)
         for para in doc.paragraphs:
             raw_text += para.text + "\n"
@@ -49,7 +51,7 @@ def extract_clean_text(file_path: Path) -> str:
     return cleaned
 
 
-# ---------- 辅助函数：按字符数切分文本，每块不超过 max_chars ----------
+# ---------- 辅助函数 2 ：按字符数切分文本，每块不超过 max_chars ----------
 def chunk_text_by_chars(text: str, max_chars: int = 1000) -> list[str]:
     try:
         chunks = []
@@ -103,8 +105,8 @@ async def run_process(task: Task, db: Session) -> None:
         db.commit()
 
     source_path = Path(file_path)
-    if source_path.is_dir():
-        raise ValueError("当前仅支持处理单个文件，请选择文件而非目录")
+    if source_path.is_dir() or source_path.is_symlink():
+        raise ValueError("当前仅支持处理单个文件，请勿使用目录或符号链接")
     if not source_path.exists():
         raise FileNotFoundError(f"文件不存在: {file_path}")
 
@@ -116,13 +118,14 @@ async def run_process(task: Task, db: Session) -> None:
     task.message = f"正在清洗文档: {source_path.name}"
     db.commit()
 
-    loop = asyncio.get_event_loop()
-    clean_text = await loop.run_in_executor(None, extract_clean_text, source_path)
-
+    clean_text = await asyncio.to_thread(extract_clean_text, source_path)
     if not clean_text:
         raise ValueError("文档内容为空或无法解析")
 
+    if total_chars > MAX_CHARS_LIMIT:
+        raise ValueError(f"文件过大（{total_chars} 字符），当前限制 {MAX_CHARS_LIMIT}")
     total_chars = len(clean_text)
+
     estimated_tokens = total_chars // 2  # 粗略估算
 
     # ---- 阶段 2: 按字符分块 (进度 70%) ----
@@ -133,7 +136,7 @@ async def run_process(task: Task, db: Session) -> None:
     task.message = f"正在分块 (约 {estimated_tokens} tokens)"
     db.commit()
 
-    chunks = await loop.run_in_executor(None, chunk_text_by_chars, clean_text, 1000)
+    chunks = await asyncio.to_thread(chunk_text_by_chars, clean_text, 1000)
 
     # ---- 阶段 3: 生成结果 JSON (进度 100%) ----
     result_json = {
@@ -157,7 +160,7 @@ async def run_process(task: Task, db: Session) -> None:
     db.refresh(task)
     if task.status == TaskStatus.cancelled:
         if result_path.exists():
-            os.remove(result_path)
+            await asyncio.to_thread(os.remove, result_path)
         return
 
     task.progress = 100
