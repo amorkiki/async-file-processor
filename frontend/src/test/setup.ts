@@ -21,7 +21,7 @@ if (typeof window.URL !== 'undefined') {
 } else {
   // 极少数情况 jsdom 未提供 URL，则创建一个完整 mock
   ; (window as any).URL = class URL {
-    constructor(url: string, base?: string) { }
+    constructor(_url: string, _base?: string) { }
     static createObjectURL = vi.fn(() => 'blob:mock-url')
     static revokeObjectURL = vi.fn()
   }

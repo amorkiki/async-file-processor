@@ -1,13 +1,16 @@
 # db.py
+import os
 from sqlmodel import create_engine
 from app.models import Task
 from sqlalchemy.orm import sessionmaker
 
 # 1. 创建数据库引擎
 # echo=True 会在终端打印所有执行的 SQL 语句，方便开发调试
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///app.db")
 engine = create_engine(
-    "sqlite:///app.db", echo=True, connect_args={"check_same_thread": False}
+    DATABASE_URL, echo=True, connect_args={"check_same_thread": False}
 )
+
 
 # 2. 创建会话工厂（SessionLocal）
 # 每次调用 SessionLocal() 就会创建一个新的数据库会话

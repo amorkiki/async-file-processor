@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # 项目根目录（backend/）
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path("/app/data")
 
 # 上传文件存放目录
 UPLOAD_DIR = BASE_DIR / "uploads"
