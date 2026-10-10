@@ -122,9 +122,9 @@ async def run_process(task: Task, db: Session) -> None:
     if not clean_text:
         raise ValueError("文档内容为空或无法解析")
 
+    total_chars = len(clean_text)
     if total_chars > MAX_CHARS_LIMIT:
         raise ValueError(f"文件过大（{total_chars} 字符），当前限制 {MAX_CHARS_LIMIT}")
-    total_chars = len(clean_text)
 
     estimated_tokens = total_chars // 2  # 粗略估算
 

@@ -1,7 +1,7 @@
 import uuid
 import pytest
 import asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx2 import AsyncClient, ASGITransport
 from sqlmodel import SQLModel, select
 from app.main import app
 from app.core.db import engine, SessionLocal

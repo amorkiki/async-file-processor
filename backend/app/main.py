@@ -7,10 +7,11 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError
 from contextlib import asynccontextmanager
 from app.routers import tasks
-from app.models import ErrorOut, TaskType
+from app.models import ErrorOut
 from app.core.db import engine
 from app.core.engine import start_engine, stop_engine
 from app.plugins.registry import get_registry
+from app.core.config import WORKER_COUNT
 
 
 # 两个时机的钩子：启动时（yield 前）把 worker 放后台，关闭时（yield 后）取消 worker.
@@ -25,7 +26,7 @@ async def lifespan(app: FastAPI):
     print("✅ 执行器注册完成")
 
     # 3. 启动引擎（3 个 Worker）
-    await start_engine(worker_count=3)
+    await start_engine(worker_count=WORKER_COUNT)
 
     yield
 
@@ -36,17 +37,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="异步文件处理服务",
     description="...",
-    version="0.2.0",
+    version="0.1.0",
     lifespan=lifespan,
 )
 
 # ------------------- 配置 CORS -------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # 你的前端开发服务器地址
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # 允许所有 HTTP 方法（GET, POST, DELETE, OPTIONS）
-    allow_headers=["*"],  # 允许所有请求头
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -87,7 +93,7 @@ async def integrity_err_handler(request: Request, exc: IntegrityError) -> JSONRe
         message = "缺少必填字段"
     elif "CHECK constraint" in error_msg:
         message = "字段值不合法（枚举范围外）"
-    elif "UNIQUE constraint" "PRIMARY KEY" in error_msg:
+    elif "UNIQUE constraint" in error_msg or "PRIMARY KEY" in error_msg:
         message = "主键或唯一键冲突"
     else:
         message = f"数据完整性错误: {error_msg}"

@@ -9,22 +9,6 @@ TaskRunnerFn = Callable[[Task, Session], Awaitable[None]]
 
 
 class RunnerRegistry:
-    """
-    任务执行器注册表
-
-    职责：
-    - 管理所有任务类型的执行器（Runner）
-    - 提供根据任务类型获取执行器的接口
-
-    使用方式：
-        registry = RunnerRegistry()
-        registry.register(TaskType.download, run_download)
-        registry.register(TaskType.process, run_process)
-
-        runner = registry.get(TaskType.download)
-        await runner(task, db)
-    """
-
     def __init__(self):
         self._runners: Dict[TaskType, TaskRunnerFn] = {}
 

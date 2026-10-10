@@ -6,14 +6,6 @@ from .queue_manager import QueueManager
 
 
 class WorkerPool:
-    """
-    Worker 池管理器
-
-    职责：
-    - 启动/停止多个 Worker
-    - 管理 Worker 生命周期
-    """
-
     def __init__(
         self,
         queue_manager: QueueManager,
@@ -33,7 +25,6 @@ class WorkerPool:
         self._worker_instances: List[Worker] = []
 
     async def start(self) -> None:
-        """启动所有 Worker"""
         for i in range(self.worker_count):
             worker = Worker(
                 queue_manager=self.queue_manager,
@@ -48,7 +39,6 @@ class WorkerPool:
         print(f"✅ {self.worker_count} 个 Worker 已启动")
 
     async def stop(self) -> None:
-        """停止所有 Worker，带超时和强制取消"""
         # 1. 发送停止信号
         for worker in self._worker_instances:
             worker.stop()

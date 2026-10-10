@@ -19,15 +19,6 @@ class StateTransition:
 
 
 class StateMachine:
-    """
-    通用状态机
-
-    职责：
-    1. 定义状态转换规则（哪些状态可以转到哪些状态）
-    2. 执行状态转换（验证合法性 + 执行回调）
-    3. 查询当前状态和可用转换
-    """
-
     def __init__(self, initial_state: str):
         self._state = initial_state
         self._transitions: Dict[str, Dict[str, StateTransition]] = {}
@@ -39,14 +30,6 @@ class StateMachine:
         to_state: str,
         on_transition: Optional[Callable] = None,
     ) -> "StateMachine":
-        """
-        添加一个允许的状态转换
-
-        Args:
-            from_state: 源状态
-            to_state: 目标状态
-            on_transition: 转换时的回调函数
-        """
         if from_state not in self._transitions:
             self._transitions[from_state] = {}
         self._transitions[from_state][to_state] = StateTransition(
@@ -58,7 +41,6 @@ class StateMachine:
         return self
 
     def add_transitions(self, transitions: list[tuple[str, str]]) -> "StateMachine":
-        """批量添加转换"""
         for from_state, to_state in transitions:
             self.add_transition(from_state, to_state)
         return self
