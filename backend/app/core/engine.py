@@ -1,11 +1,3 @@
-"""
-引擎集成层
-
-职责：
-- 组装 fastapi_async_lib 引擎和 app 业务层
-- 提供统一的启动/停止接口
-"""
-
 import asyncio
 import os
 from typing import Optional
@@ -25,7 +17,6 @@ _worker_task: Optional[asyncio.Task] = None
 
 
 def get_queue_manager() -> QueueManager:
-    """获取队列管理器单例"""
     global _queue_manager
     if _queue_manager is None:
         _queue_manager = QueueManager[Task]()
@@ -33,13 +24,6 @@ def get_queue_manager() -> QueueManager:
 
 
 def create_worker_pool(worker_count: int = 3) -> WorkerPool:
-    """
-    创建 Worker 池
-
-    完成引擎层和业务层的组装：
-    - 引擎层：QueueManager + WorkerPool
-    - 业务层：SessionLocal（数据库工厂）+ get_runner（任务执行器）
-    """
     queue_manager = get_queue_manager()
 
     # 数据库 Session 工厂
@@ -48,26 +32,14 @@ def create_worker_pool(worker_count: int = 3) -> WorkerPool:
 
     # 业务执行器适配器（将引擎调用转换为业务调用）
     async def task_runner_adapter(task: BaseTask, db: Session) -> None:
-        """
-        业务执行器适配器
-
-        1. 从 BaseTask 中提取原始 Task 对象
-        2. 根据任务类型获取执行器
-        3. 执行任务
-        """
-        # 如果是 TaskAdapter，提取原始 Task
         if hasattr(task, "_task"):
             raw_task = task._task
         else:
-            # 防御性：如果不是适配器，尝试直接使用
             raw_task = task
 
-        # 获取执行器
         runner = get_runner(raw_task.type)
         if not runner:
             raise ValueError(f"未注册的执行器: {raw_task.type}")
-
-        # 执行业务逻辑
         await runner(raw_task, db)
 
     def adapter_factory(db_task, db):

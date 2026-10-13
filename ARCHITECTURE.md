@@ -30,7 +30,7 @@
 
 ---
 
-## 三、后端分层架构（五层）
+## 三、后端分层架构（六层）
 
 | 层 | 目录 | 职责 | 依赖方向 |
 | :--- | :--- | :--- | :--- |
@@ -76,7 +76,7 @@
 Worker **不关心** 具体业务逻辑，只负责调度。
 
 ### 4. WorkerPool（worker_pool.py）
-管理 N 个 Worker 协程的启动/停止。项目启动时创建 2 个 Worker。
+管理 N 个 Worker 协程的启动/停止。项目启动时创建 3 个 Worker。
 
 ### 5. 状态机（state_machine.py）
 校验状态转换合法性。
@@ -105,16 +105,66 @@ class TaskAdapter:
 ```
 
 ### 7. 插件注册表（registry.py）
-维护任务类型到执行器的映射：
+通过 RunnerRegistry 类维护 TaskType -> TaskRunnerFn 的映射，并提供全局单例 get_registry() 和便捷函数 get_runner()。
+
+执行器类型定义为：
+
+`TaskRunnerFn = Callable[[Task, Session], Awaitable[None]]`
+
+RunnerRegistry 提供以下方法：
+
+`register(task_type, runner)`：注册执行器
+
+`get(task_type)`：获取执行器
+
+`has(task_type)`：判断某类型是否已注册
+
+`list()`：列出所有已注册的任务类型
+
+核心代码：
 
 ```python
-RUNNERS = {
-    "download": run_download,
-    "process": run_process,
-}
-```
+class RunnerRegistry:
+    def __init__(self):
+        self._runners: Dict[TaskType, TaskRunnerFn] = {}
 
-新增任务类型时，只需注册新执行器，引擎层零改动。
+    def register(self, task_type: TaskType, runner: TaskRunnerFn) -> None:
+        self._runners[task_type] = runner
+
+    def get(self, task_type: TaskType) -> Optional[TaskRunnerFn]:
+        return self._runners.get(task_type)
+
+    def has(self, task_type: TaskType) -> bool:
+        return task_type in self._runners
+
+    def list(self) -> list:
+        return list(self._runners.keys())
+```
+全局单例与默认注册：
+
+```python
+_registry: Optional[RunnerRegistry] = None
+
+def get_registry() -> RunnerRegistry:
+    """获取全局注册表单例"""
+    global _registry
+    if _registry is None:
+        _registry = RunnerRegistry()
+        # 自动注册默认执行器
+        _registry.register(TaskType.download, run_download)
+        _registry.register(TaskType.process, run_process)
+    return _registry
+
+def get_runner(task_type: TaskType) -> Optional[TaskRunnerFn]:
+    """便捷方法：获取执行器"""
+    return get_registry().get(task_type)
+```
+新增任务类型时，不再修改 RUNNERS 字典，而是在 get_registry() 首次初始化时增加一行 register 调用。例如：
+
+```python
+_registry.register(TaskType.compress, run_compress)
+```
+这样引擎层、路由层、队列层依然无需改动，只新增业务执行器并注册即可。
 
 ---
 
@@ -193,16 +243,14 @@ async def run_compress(task: Task, db: Session) -> None:
     db.commit()
 ```
 
-### 步骤 2：注册执行器 `app/plugins/registry.py`
+### 步骤 2：注册执行器 
 
 ```python
+# app/plugins/registry.py
 from app.plugins.compress import run_compress
 
-RUNNERS = {
-    "download": run_download,
-    "process": run_process,
-    "compress": run_compress,   # ← 新增一行
-}
+# 在 get_registry() 中增加：
+_registry.register(TaskType.compress, run_compress)
 ```
 
 ### 步骤 3：前端添加选项
@@ -274,6 +322,8 @@ RUNNERS = {
 | `test_task_adapter.py` | 单元 | 适配器属性映射 |
 | `test_data_layer.py` | 单元 | 数据层 CRUD |
 | `test_api.py` | 集成 | 完整任务生命周期 + 取消 |
+
+> 以下命令默认在容器内执行；若在宿主机直接执行，请先安装 uv、Node、npm。
 
 运行：`cd backend && uv run pytest tests/ -v`
 

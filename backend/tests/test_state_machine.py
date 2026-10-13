@@ -1,7 +1,6 @@
 import pytest
 from fastapi_async_lib.engine.state_machine import (
     create_task_state_machine,
-    StateMachine,
     TransitionError,
 )
 

@@ -20,6 +20,11 @@ dependencies = [
 dev = [
     "httpx2>=2.10.0",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
 ]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
